@@ -2,625 +2,575 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AstroVerse AR</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lopburi Solar AR: Training Module</title>
+    
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         /* Custom Animations */
-        @keyframes orbit {
-            0% { transform: translate(-50%, -50%) rotate(0deg); }
-            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
         }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
+        @keyframes flow {
+            0% { stroke-dashoffset: 24; }
+            100% { stroke-dashoffset: 0; }
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
+        @keyframes bounce-in {
+            0% { opacity: 0; transform: scale(0.3) translateY(-20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
         }
-        .animate-fadeOut {
-            animation: fadeOut 0.2s ease-out forwards;
+        @keyframes slide-up {
+            0% { transform: translateY(100%); }
+            100% { transform: translateY(0); }
         }
-        .animate-fadeIn {
-            animation: fadeIn 0.3s ease-out forwards;
+        @keyframes fade-in-down {
+            0% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
-        /* Hide scrollbar for clean UI */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        
+        .animate-scan { animation: scan 3s linear infinite; }
+        .animate-flow { animation: flow 1s linear infinite; }
+        .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .animate-fade-in-down { animation: fade-in-down 0.3s ease-out both; }
+        .animate-ping-slow { animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        .animate-spin-slow { animation: spin 3s linear infinite; }
+
+        /* Disable scroll on mobile */
+        body { touch-action: none; overscroll-behavior: none; }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-
+<body class="bg-gray-900 text-white font-sans overflow-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef, useCallback } = React;
 
-        // --- Icons Components (SVG) ---
-        // สร้าง Icon Component เพื่อใช้แทน Lucide-react ในไฟล์ HTML เดียว
-        const IconWrapper = ({ children, size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                {children}
+        // --- Icons (SVG Components) ---
+        const Icon = ({ path, size = 24, className = "" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {path}
             </svg>
         );
 
         const Icons = {
-            Camera: (props) => <IconWrapper {...props}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconWrapper>,
-            BookOpen: (props) => <IconWrapper {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></IconWrapper>,
-            User: (props) => <IconWrapper {...props}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconWrapper>,
-            Star: (props) => <IconWrapper {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></IconWrapper>,
-            Crosshair: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></IconWrapper>,
-            Info: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconWrapper>,
-            ChevronRight: (props) => <IconWrapper {...props}><polyline points="9 18 15 12 9 6"/></IconWrapper>,
-            Zap: (props) => <IconWrapper {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></IconWrapper>,
-            Award: (props) => <IconWrapper {...props}><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></IconWrapper>,
-            ArrowLeft: (props) => <IconWrapper {...props}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></IconWrapper>,
-            Volume2: (props) => <IconWrapper {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></IconWrapper>,
-            Maximize: (props) => <IconWrapper {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></IconWrapper>,
-            Share2: (props) => <IconWrapper {...props}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></IconWrapper>,
-            Download: (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconWrapper>,
-            X: (props) => <IconWrapper {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconWrapper>,
-            Facebook: (props) => <IconWrapper {...props}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></IconWrapper>,
-            Twitter: (props) => <IconWrapper {...props}><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></IconWrapper>,
-            Instagram: (props) => <IconWrapper {...props}><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></IconWrapper>,
-            PlayCircle: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></IconWrapper>,
-            Clock: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconWrapper>
+            Camera: (props) => <Icon path={<><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></>} {...props} />,
+            Zap: (props) => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} {...props} />,
+            AlertTriangle: (props) => <Icon path={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} {...props} />,
+            CheckCircle: (props) => <Icon path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} {...props} />,
+            Info: (props) => <Icon path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>} {...props} />,
+            Activity: (props) => <Icon path={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />} {...props} />,
+            BatteryCharging: (props) => <Icon path={<><path d="M5 18H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.19M15 6h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3.19"/><line x1="23" y1="13" x2="23" y2="11"/><polyline points="11 6 7 12 13 12 9 18"/></>} {...props} />,
+            ShieldAlert: (props) => <Icon path={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>} {...props} />,
+            X: (props) => <Icon path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} {...props} />,
+            Video: (props) => <Icon path={<><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></>} {...props} />,
+            VideoOff: (props) => <Icon path={<><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></>} {...props} />,
+            Settings: (props) => <Icon path={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>} {...props} />,
+            BookOpen: (props) => <Icon path={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>} {...props} />
         };
 
-        const AstroVerseApp = () => {
-          const [currentView, setCurrentView] = useState('home'); 
-          const [selectedPlanet, setSelectedPlanet] = useState(null);
-          const [selectedLesson, setSelectedLesson] = useState(null);
-          const [arScanning, setArScanning] = useState(true);
-          const [userLevel, setUserLevel] = useState(5);
-          const [userXP, setUserXP] = useState(2450);
-          const [showShareModal, setShowShareModal] = useState(false);
-          const [flashTrigger, setFlashTrigger] = useState(false);
+        // --- Custom Hook for Camera ---
+        const useCameraStream = (isActive) => {
+            const videoRef = useRef(null);
+            const [stream, setStream] = useState(null);
+            const [error, setError] = useState(null);
+            const [isLoading, setIsLoading] = useState(false);
 
-          // ข้อมูลบทเรียน
-          const lessonsData = [
-            { 
-              id: 'solar-origin', 
-              title: 'กำเนิดระบบสุริยะ', 
-              icon: '☀️', 
-              color: 'from-orange-500/20 to-red-500/20',
-              textColor: 'text-orange-400',
-              image: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2022&auto=format&fit=crop',
-              duration: '5 min read',
-              content: (
-                <React.Fragment>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    ระบบสุริยะถือกำเนิดขึ้นเมื่อประมาณ <strong className="text-white">4.6 พันล้านปีก่อน</strong> จากฝุ่นและแก๊สในอวกาศที่เรียกว่า "เนบิวลาสุริยะ" (Solar Nebula) แรงโน้มถ่วงทำให้เนบิวลายุบตัวลงและหมุนวนจนก่อกำเนิดเป็นดวงอาทิตย์ที่ใจกลาง
-                  </p>
-                  <div className="bg-slate-800 p-4 rounded-xl mb-6 border-l-4 border-orange-500">
-                    <h4 className="font-bold text-orange-400 mb-2 flex items-center gap-2"><Icons.Info size={16}/> รู้หรือไม่?</h4>
-                    <p className="text-sm text-slate-300">มวลของดวงอาทิตย์คิดเป็น 99.86% ของมวลทั้งหมดในระบบสุริยะ ส่วนที่เหลือคือดาวเคราะห์และวัตถุอื่นๆ รวมกัน</p>
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">การก่อตัวของดาวเคราะห์</h3>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    เศษฝุ่นที่เหลือจากการกำเนิดดวงอาทิตย์เริ่มจับตัวกันเป็นก้อนหินและน้ำแข็ง จนกลายเป็นดาวเคราะห์ชั้นใน (ดาวพุธ ศุกร์ โลก อังคาร) และดาวเคราะห์ก๊าซยักษ์ในชั้นนอก
-                  </p>
-                </React.Fragment>
-              )
-            },
-            { 
-              id: 'moon-phases', 
-              title: 'ข้างขึ้นข้างแรม', 
-              icon: '🌑', 
-              color: 'from-blue-500/20 to-indigo-500/20',
-              textColor: 'text-blue-400',
-              image: 'https://images.unsplash.com/photo-1532693322450-2cb5c511067d?q=80&w=2070&auto=format&fit=crop',
-              duration: '8 min read',
-              content: (
-                <React.Fragment>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    ปรากฏการณ์ข้างขึ้นข้างแรมเกิดจากการที่ดวงจันทร์โคจรรอบโลก และสะท้อนแสงจากดวงอาทิตย์ในมุมที่เปลี่ยนไปเมื่อมองจากโลก ทำให้เราเห็นส่วนสว่างของดวงจันทร์ไม่เท่ากันในแต่ละคืน
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar">
-                    {['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'].map((phase, i) => (
-                      <div key={i} className="min-w-[50px] h-[50px] bg-slate-800 rounded-lg flex items-center justify-center text-2xl border border-slate-700">{phase}</div>
-                    ))}
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">วัฏจักรดวงจันทร์</h3>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    หนึ่งรอบของข้างขึ้นข้างแรมกินเวลาประมาณ 29.5 วัน เรียกว่า "เดือนทางจันทรคติ"
-                  </p>
-                </React.Fragment>
-              )
-            },
-            { 
-              id: 'black-hole', 
-              title: 'หลุมดำ (Black Hole)', 
-              icon: '🕳️', 
-              color: 'from-purple-500/20 to-pink-500/20',
-              textColor: 'text-purple-400',
-              image: 'https://images.unsplash.com/photo-1462332420958-a05d1e002413?q=80&w=2007&auto=format&fit=crop',
-              duration: '10 min read',
-              content: (
-                <React.Fragment>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    หลุมดำคือเทหวัตถุในอวกาศที่มีแรงโน้มถ่วงสูงมาก จนกระทั่งแสงก็ไม่สามารถหนีออกมาได้ เกิดจากการยุบตัวของดาวฤกษ์มวลมหาศาลเมื่อสิ้นอายุขัย
-                  </p>
-                  <div className="bg-slate-800 p-4 rounded-xl mb-6 border-l-4 border-purple-500">
-                    <h4 className="font-bold text-purple-400 mb-2 flex items-center gap-2"><Icons.Info size={16}/> ขอบฟ้าเหตุการณ์</h4>
-                    <p className="text-sm text-slate-300">Event Horizon คือจุดที่ "ห้ามหวนกลับ" หากวัตถุใดข้ามเส้นนี้ไป จะถูกดูดเข้าสู่ใจกลางหลุมดำทันที</p>
-                  </div>
-                </React.Fragment>
-              )
-            },
-            { 
-              id: 'space-ex', 
-              title: 'สำรวจอวกาศ', 
-              icon: '🚀', 
-              color: 'from-red-500/20 to-orange-500/20',
-              textColor: 'text-red-400',
-              image: 'https://images.unsplash.com/photo-1517976487492-5750f3195933?q=80&w=2070&auto=format&fit=crop',
-              duration: '12 min read',
-              content: (
-                <React.Fragment>
-                  <p className="mb-4 text-slate-300 leading-relaxed">
-                    มนุษยชาติเริ่มสำรวจอวกาศอย่างจริงจังตั้งแต่ยุคสงครามเย็น เริ่มต้นด้วยดาวเทียมสปุตนิก 1 ของโซเวียต ตามด้วยการส่งมนุษย์ไปดวงจันทร์ในโครงการ Apollo ของ NASA
-                  </p>
-                  <ul className="space-y-2 mb-4 text-slate-300 text-sm">
-                     <li className="flex items-center gap-2"><span className="text-red-400">•</span> 1957: สปุตนิก 1 (ดาวเทียมดวงแรก)</li>
-                     <li className="flex items-center gap-2"><span className="text-red-400">•</span> 1961: ยูริ กาการิน (มนุษย์คนแรกในอวกาศ)</li>
-                     <li className="flex items-center gap-2"><span className="text-red-400">•</span> 1969: อพอลโล 11 (มนุษย์เหยียบดวงจันทร์)</li>
-                  </ul>
-                </React.Fragment>
-              )
-            },
-          ];
+            useEffect(() => {
+                if (!isActive) {
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        setStream(null);
+                    }
+                    return;
+                }
 
-          // ข้อมูลดาวเคราะห์
-          const planets = [
-            { id: 'sun', name: 'ดวงอาทิตย์ (Sun)', color: 'bg-yellow-400', size: 'w-24 h-24', orbit: 'w-0 h-0', speed: '0s', desc: 'ดาวฤกษ์ศูนย์กลางของระบบสุริยะ', dist: '0 AU', type: 'Star' },
-            { id: 'mercury', name: 'ดาวพุธ (Mercury)', color: 'bg-gray-400', size: 'w-4 h-4', orbit: 'w-32 h-32', speed: '4s', desc: 'ดาวเคราะห์ที่อยู่ใกล้ดวงอาทิตย์ที่สุด', dist: '0.39 AU', type: 'Terrestrial' },
-            { id: 'venus', name: 'ดาวศุกร์ (Venus)', color: 'bg-orange-300', size: 'w-6 h-6', orbit: 'w-48 h-48', speed: '6s', desc: 'ฝาแฝดของโลก แต่ร้อนระอุด้วยก๊าซเรือนกระจก', dist: '0.72 AU', type: 'Terrestrial' },
-            { id: 'earth', name: 'โลก (Earth)', color: 'bg-blue-500', size: 'w-6 h-6', orbit: 'w-64 h-64', speed: '8s', desc: 'บ้านของเรา ดาวเคราะห์แห่งผืนน้ำและสิ่งมีชีวิต', dist: '1.00 AU', type: 'Terrestrial' },
-            { id: 'mars', name: 'ดาวอังคาร (Mars)', color: 'bg-red-500', size: 'w-5 h-5', orbit: 'w-80 h-80', speed: '10s', desc: 'ดาวแดง เป้าหมายต่อไปของมนุษยชาติ', dist: '1.52 AU', type: 'Terrestrial' },
-            { id: 'jupiter', name: 'ดาวพฤหัส (Jupiter)', color: 'bg-orange-200', size: 'w-16 h-16', orbit: 'w-[28rem] h-[28rem]', speed: '18s', desc: 'พี่ใหญ่แห่งระบบสุริยะ ดาวเคราะห์แก๊สยักษ์', dist: '5.20 AU', type: 'Gas Giant' },
-          ];
+                const startCamera = async () => {
+                    setIsLoading(true);
+                    setError(null);
+                    try {
+                        const constraints = {
+                            video: {
+                                facingMode: 'environment', // Prefer rear camera
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            }
+                        };
+                        const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                        setStream(mediaStream);
+                        if (videoRef.current) {
+                            videoRef.current.srcObject = mediaStream;
+                        }
+                    } catch (err) {
+                        console.error("Camera Access Error:", err);
+                        setError("ไม่สามารถเข้าถึงกล้องได้ (กรุณาตรวจสอบการอนุญาต)");
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
 
-          useEffect(() => {
-            if (currentView === 'ar') {
-              const timer = setTimeout(() => setArScanning(false), 2000);
-              return () => clearTimeout(timer);
-            } else {
-              setArScanning(true);
-              setSelectedPlanet(null);
-              setShowShareModal(false);
-            }
-          }, [currentView]);
+                startCamera();
 
-          const handleSnapshot = () => {
-            setFlashTrigger(true);
-            setTimeout(() => setFlashTrigger(false), 150);
-            setTimeout(() => setShowShareModal(true), 400);
-          };
+                return () => {
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                };
+            }, [isActive]);
 
-          const openLesson = (lesson) => {
-            setSelectedLesson(lesson);
-            setCurrentView('lesson');
-          };
+            return { videoRef, error, isLoading, hasStream: !!stream };
+        };
 
-          const HomeView = () => (
-            <div className="flex flex-col h-full bg-slate-900 text-white overflow-y-auto pb-20 no-scrollbar">
-              <div className="p-6 bg-gradient-to-b from-indigo-900 to-slate-900 rounded-b-3xl shadow-xl border-b border-indigo-500/30 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-20">
-                   <Icons.Star size={100} />
-                </div>
-                <div className="flex justify-between items-center mb-4 relative z-10">
-                  <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">AstroVerse AR</h1>
-                    <p className="text-slate-400 text-sm">ห้องเรียนจักรวาลในมือคุณ</p>
-                  </div>
-                  <div className="bg-indigo-800/50 p-2 rounded-full border border-indigo-500/30">
-                    <Icons.User className="text-cyan-300" />
-                  </div>
-                </div>
-                
-                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10 relative z-10">
-                  <div className="flex justify-between items-end mb-2">
-                    <div>
-                      <span className="text-xs text-indigo-300 uppercase tracking-wider">Cadet Level</span>
-                      <div className="text-3xl font-bold text-white">{userLevel}</div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-indigo-300">XP</span>
-                      <div className="text-lg font-bold text-yellow-400">{userXP.toLocaleString()}</div>
-                    </div>
-                  </div>
-                  <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-cyan-500 to-blue-600 h-full w-[75%] rounded-full shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
-                  </div>
-                  <p className="text-xs text-center mt-2 text-slate-300">อีก 550 XP จะเลื่อนยศเป็น "Space Explorer"</p>
-                </div>
-              </div>
+        // --- Main App Component ---
+        const App = () => {
+            const [currentView, setCurrentView] = useState('home'); 
+            const [notification, setNotification] = useState(null);
+            const [useRealCamera, setUseRealCamera] = useState(true);
 
-              <div className="p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Icons.Zap className="text-yellow-400 fill-yellow-400" size={18} /> 
-                  ภารกิจวันนี้ (Daily Missions)
-                </h2>
-                <div className="space-y-3">
-                  <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-cyan-500 shadow-lg flex items-center justify-between hover:bg-slate-750 transition cursor-pointer" onClick={() => setCurrentView('ar')}>
-                    <div>
-                      <h3 className="font-bold text-white">ตามหาดาวเคราะห์แก๊ส</h3>
-                      <p className="text-xs text-slate-400 mt-1">ส่องกล้อง AR เพื่อค้นหาดาวพฤหัส</p>
-                    </div>
-                    <div className="bg-cyan-900/50 px-3 py-1 rounded-full text-cyan-300 text-xs font-bold border border-cyan-500/30">
-                      +100 XP
-                    </div>
-                  </div>
-                  <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-purple-500 shadow-lg flex items-center justify-between hover:bg-slate-750 transition cursor-pointer" onClick={() => setCurrentView('quiz')}>
-                    <div>
-                      <h3 className="font-bold text-white">Quiz: ระบบสุริยะ</h3>
-                      <p className="text-xs text-slate-400 mt-1">ทดสอบความเข้าใจ 5 ข้อ</p>
-                    </div>
-                    <div className="bg-purple-900/50 px-3 py-1 rounded-full text-purple-300 text-xs font-bold border border-purple-500/30">
-                      +50 XP
-                    </div>
-                  </div>
-                </div>
+            const showNotification = useCallback((message, type = 'info') => {
+                setNotification({ message, type });
+                setTimeout(() => setNotification(null), 3500);
+            }, []);
 
-                <h2 className="text-lg font-semibold mb-4 mt-8 flex items-center gap-2">
-                  <Icons.BookOpen className="text-cyan-400" size={18} /> 
-                  บทเรียน (Lessons)
-                </h2>
-                <div className="grid grid-cols-2 gap-4">
-                  {lessonsData.map((lesson) => (
-                     <div 
-                       key={lesson.id}
-                       onClick={() => openLesson(lesson)}
-                       className={`bg-gradient-to-br ${lesson.color} bg-slate-800 p-4 rounded-2xl border border-white/5 flex flex-col items-center text-center gap-2 hover:scale-105 transition cursor-pointer group`}
-                     >
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-1 bg-black/20 group-hover:bg-black/40 transition`}>
-                        {lesson.icon}
-                      </div>
-                      <span className="text-sm font-medium text-white">{lesson.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
+            const renderView = () => {
+                switch (currentView) {
+                    case 'home':
+                        return <HomeView setView={setCurrentView} toggleCamera={setUseRealCamera} useCamera={useRealCamera} />;
+                    case 'job-sheet-1':
+                        return <JobSheet1View onBack={() => setCurrentView('home')} showNotification={showNotification} useCamera={useRealCamera} />;
+                    case 'job-sheet-4':
+                        return <JobSheet4View onBack={() => setCurrentView('home')} showNotification={showNotification} useCamera={useRealCamera} />;
+                    case 'job-sheet-6':
+                        return <JobSheet6View onBack={() => setCurrentView('home')} showNotification={showNotification} useCamera={useRealCamera} />;
+                    default:
+                        return <HomeView setView={setCurrentView} />;
+                }
+            };
 
-          const LessonView = () => (
-            <div className="flex flex-col h-full bg-slate-900 text-white overflow-y-auto relative no-scrollbar">
-              <div className="h-64 w-full relative">
-                 <div className="absolute inset-0 bg-slate-900/30"></div>
-                 <img src={selectedLesson?.image} className="w-full h-full object-cover" alt="Lesson Header" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent"></div>
-                 
-                 <button onClick={() => setCurrentView('home')} className="absolute top-4 left-4 bg-black/40 backdrop-blur-md p-2 rounded-full text-white hover:bg-white/20 border border-white/10 z-10">
-                   <Icons.ArrowLeft size={20} />
-                 </button>
-              </div>
+            return (
+                <div className="w-full h-screen bg-gray-900 text-white flex flex-col items-center justify-center">
+                    <div className="w-full max-w-md h-full max-h-[900px] bg-black relative shadow-2xl overflow-hidden flex flex-col">
+                        {/* Top Status Bar */}
+                        <div className="absolute top-0 w-full p-2 px-4 flex justify-between items-center z-50 bg-gradient-to-b from-black/90 to-transparent pointer-events-none">
+                            <span className="text-xs text-gray-300 font-mono tracking-wider">Lopburi Solar Training</span>
+                            <div className="flex gap-2 text-xs items-center">
+                                <span className={`w-2 h-2 rounded-full ${useRealCamera ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`}></span>
+                                <Icons.BatteryCharging size={16} />
+                                <span>100%</span>
+                            </div>
+                        </div>
 
-              <div className="px-6 -mt-10 relative z-10 pb-20">
-                 <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-cyan-500/20 text-cyan-300 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-cyan-500/30">
-                       Science
-                    </span>
-                    <span className="flex items-center gap-1 text-slate-400 text-[10px]">
-                       <Icons.Clock size={10} /> {selectedLesson?.duration}
-                    </span>
-                 </div>
-                 
-                 <h1 className="text-3xl font-bold mb-4 leading-tight">{selectedLesson?.title}</h1>
-                 
-                 <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-700">
-                    <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-full text-sm font-medium transition shadow-lg shadow-indigo-500/20">
-                       <Icons.PlayCircle size={16} /> ฟังบรรยาย
-                    </button>
-                    <button className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-full">
-                       <Icons.Share2 size={18} />
-                    </button>
-                    <button className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-full">
-                       <Icons.Download size={18} />
-                    </button>
-                 </div>
+                        {/* Main Content Area */}
+                        <div className="flex-1 relative w-full h-full">
+                            {renderView()}
+                        </div>
 
-                 <div className="prose prose-invert prose-sm max-w-none">
-                    {selectedLesson?.content}
-                 </div>
-
-                 <div className="mt-8 pt-4 border-t border-slate-700 flex justify-between items-center text-sm text-slate-400">
-                    <span>บทเรียนถัดไป</span>
-                    <button className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-medium">
-                       สำรวจอวกาศ <Icons.ChevronRight size={16} />
-                    </button>
-                 </div>
-              </div>
-            </div>
-          );
-
-          const ARModeView = () => (
-            <div className="relative h-full w-full bg-black overflow-hidden flex flex-col">
-              {flashTrigger && <div className="absolute inset-0 bg-white z-[60] animate-fadeOut pointer-events-none"></div>}
-
-              <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40"></div>
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.1)_1px,transparent_1px)] bg-[size:40px_40px] [perspective:1000px] [transform:rotateX(60deg)_translateY(-100px)] origin-top opacity-30"></div>
-              </div>
-
-              <div className="absolute inset-0 z-10 pointer-events-none p-4 flex flex-col justify-between">
-                 <div className="flex justify-between items-start">
-                    <button onClick={() => setCurrentView('home')} className="pointer-events-auto bg-black/40 backdrop-blur border border-white/20 p-2 rounded-full text-white hover:bg-white/20">
-                       <Icons.ArrowLeft />
-                    </button>
-                    <div className="bg-cyan-900/80 backdrop-blur px-4 py-1 rounded-full border border-cyan-500/50 text-cyan-300 text-xs font-mono animate-pulse">
-                       AR TRACKING ACTIVE
-                    </div>
-                    <div className="flex gap-2 pointer-events-auto">
-                       <button className="bg-black/40 backdrop-blur border border-white/20 p-2 rounded-full text-white hover:bg-white/20"><Icons.Volume2 size={20}/></button>
-                       <button className="bg-black/40 backdrop-blur border border-white/20 p-2 rounded-full text-white hover:bg-white/20"><Icons.Maximize size={20}/></button>
-                    </div>
-                 </div>
-
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                    {arScanning ? (
-                       <div className="relative">
-                          <div className="w-64 h-64 border-2 border-cyan-500/30 rounded-lg animate-pulse flex items-center justify-center">
-                             <div className="text-cyan-400 font-mono text-sm">SCANNING SURFACE...</div>
-                          </div>
-                          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
-                          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
-                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
-                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400"></div>
-                       </div>
-                    ) : null}
-                 </div>
-
-                 <div className="pointer-events-auto w-full flex flex-col items-center gap-4 mb-20 z-20">
-                    {!arScanning && !selectedPlanet && (
-                       <div className="bg-black/60 backdrop-blur px-6 py-2 rounded-full text-white text-sm animate-bounce mb-2">
-                          แตะที่ดาวเคราะห์เพื่อเรียนรู้
-                       </div>
-                    )}
-                    {!arScanning && (
-                       <button 
-                          onClick={handleSnapshot}
-                          className="w-16 h-16 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/40 transition active:scale-90"
-                          aria-label="Take Snapshot"
-                       >
-                          <div className="w-12 h-12 bg-white rounded-full shadow-lg"></div>
-                       </button>
-                    )}
-                 </div>
-              </div>
-
-              {!arScanning && (
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] pointer-events-auto [perspective:1000px] z-5">
-                    <div className="relative w-full h-full [transform-style:preserve-3d] [transform:rotateX(60deg)_scale(0.6)]">
-                       
-                       {planets.map((planet) => (
-                          <div key={planet.id} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 hover:border-cyan-500/50 transition-colors"
-                               style={{ width: planet.orbit, height: planet.orbit }}>
-                             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
-                                  style={{ animation: `orbit ${planet.speed} linear infinite` }}>
-                                <div 
-                                   onClick={() => setSelectedPlanet(planet)}
-                                   className={`${planet.size} ${planet.color} rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)] transform hover:scale-125 transition-transform duration-300 relative`}
-                                >
-                                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 px-2 py-0.5 rounded text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity [transform:rotateX(-60deg)]">
-                                      {planet.name}
-                                   </div>
+                        {/* Global Notification Toast */}
+                        {notification && (
+                            <div className={`absolute top-20 left-4 right-4 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce-in z-[60] border border-white/10 backdrop-blur-md ${
+                                notification.type === 'danger' ? 'bg-red-600/90 text-white' : 
+                                notification.type === 'success' ? 'bg-green-600/90 text-white' : 'bg-blue-600/90 text-white'
+                            }`}>
+                                <div className="p-2 bg-white/20 rounded-full">
+                                    {notification.type === 'danger' ? <Icons.ShieldAlert size={20} /> : notification.type === 'success' ? <Icons.CheckCircle size={20} /> : <Icons.Info size={20} />}
                                 </div>
-                             </div>
-                          </div>
-                       ))}
+                                <p className="text-sm font-medium pr-2">{notification.message}</p>
+                            </div>
+                        )}
                     </div>
-                 </div>
-              )}
-
-              {showShareModal && (
-                 <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn">
-                    <div className="flex justify-end w-full max-w-sm mb-2">
-                       <button onClick={() => setShowShareModal(false)} className="text-white hover:text-red-400 p-2">
-                          <Icons.X size={24} />
-                       </button>
-                    </div>
-                    
-                    <div className="bg-white p-4 pb-8 rounded-xl shadow-2xl rotate-2 transform transition hover:rotate-0 w-full max-w-xs mb-8">
-                       <div className="bg-slate-900 h-64 rounded-lg mb-4 flex flex-col items-center justify-center overflow-hidden relative shadow-inner">
-                          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop')] bg-cover opacity-60"></div>
-                          <div className="relative z-10 flex flex-col items-center">
-                             {selectedPlanet ? (
-                                <React.Fragment>
-                                   <div className={`w-24 h-24 ${selectedPlanet.color} rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)] mb-4`}></div>
-                                   <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">{selectedPlanet.name}</span>
-                                </React.Fragment>
-                             ) : (
-                                <React.Fragment>
-                                   <div className="w-20 h-20 bg-orange-200 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)] mb-2 relative">
-                                      <div className="absolute w-32 h-8 bg-orange-300/50 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-white/20 transform rotate-12"></div>
-                                   </div>
-                                   <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full text-sm">Space Adventure</span>
-                                </React.Fragment>
-                             )}
-                          </div>
-                          <div className="absolute bottom-2 right-2 text-[10px] text-white/50 font-mono">AR CAMERA • 12/05/2026</div>
-                       </div>
-                       <div className="flex items-center justify-between px-2">
-                          <div className="flex flex-col">
-                             <span className="font-handwriting font-bold text-slate-800 text-lg">My Space Journey! 🚀</span>
-                             <span className="text-xs text-slate-400">#AstroVerseAR #SpaceCadet</span>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                             <Icons.User className="text-indigo-600 w-6 h-6" />
-                          </div>
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-4 w-full max-w-xs">
-                       <button className="flex flex-col items-center gap-1 group">
-                          <div className="w-12 h-12 bg-[#1877F2] rounded-full flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition">
-                             <Icons.Facebook size={20} />
-                          </div>
-                          <span className="text-xs text-white/70">Facebook</span>
-                       </button>
-                       <button className="flex flex-col items-center gap-1 group">
-                          <div className="w-12 h-12 bg-black border border-white/20 rounded-full flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition">
-                             <Icons.Twitter size={20} />
-                          </div>
-                          <span className="text-xs text-white/70">X</span>
-                       </button>
-                       <button className="flex flex-col items-center gap-1 group">
-                          <div className="w-12 h-12 bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 rounded-full flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition">
-                             <Icons.Instagram size={20} />
-                          </div>
-                          <span className="text-xs text-white/70">Instagram</span>
-                       </button>
-                       <button className="flex flex-col items-center gap-1 group">
-                          <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white shadow-lg group-hover:bg-white/30 transition">
-                             <Icons.Download size={20} />
-                          </div>
-                          <span className="text-xs text-white/70">Save</span>
-                       </button>
-                    </div>
-                 </div>
-              )}
-
-              {!showShareModal && selectedPlanet && (
-                 <div className="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg rounded-t-3xl p-6 border-t border-cyan-500/30 shadow-2xl z-50 transform transition-transform duration-300">
-                    <div className="flex justify-between items-start mb-4">
-                       <div className="flex items-center gap-4">
-                          <div className={`w-16 h-16 ${selectedPlanet.color} rounded-full shadow-inner`}></div>
-                          <div>
-                             <h2 className="text-xl font-bold text-white">{selectedPlanet.name}</h2>
-                             <span className="text-xs px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">
-                                {selectedPlanet.type}
-                             </span>
-                          </div>
-                       </div>
-                       <button onClick={() => setSelectedPlanet(null)} className="text-slate-400 hover:text-white">
-                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">✕</div>
-                       </button>
-                    </div>
-                    
-                    <p className="text-slate-300 text-sm mb-4 leading-relaxed">
-                       {selectedPlanet.desc}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                       <div className="bg-black/30 p-3 rounded-lg">
-                          <div className="text-xs text-slate-500">Distance from Sun</div>
-                          <div className="text-cyan-400 font-mono">{selectedPlanet.dist}</div>
-                       </div>
-                       <div className="bg-black/30 p-3 rounded-lg">
-                          <div className="text-xs text-slate-500">Rotation Period</div>
-                          <div className="text-cyan-400 font-mono">24 Hours</div>
-                       </div>
-                    </div>
-
-                    <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 py-3 rounded-xl text-white font-bold shadow-lg hover:shadow-cyan-500/20 transition flex items-center justify-center gap-2">
-                       สำรวจพื้นผิว <Icons.ChevronRight size={18} />
-                    </button>
-                 </div>
-              )}
-            </div>
-          );
-
-          const QuizView = () => (
-            <div className="flex flex-col h-full bg-slate-900 text-white p-6 no-scrollbar">
-              <div className="flex items-center gap-4 mb-8">
-                <button onClick={() => setCurrentView('home')} className="p-2 rounded-full bg-slate-800 hover:bg-slate-700">
-                  <Icons.ArrowLeft size={20} />
-                </button>
-                <h2 className="text-xl font-bold">ภารกิจ: ระบบสุริยะ</h2>
-              </div>
-
-              <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Award size={80} /></div>
-                <div className="flex justify-between text-sm text-slate-400 mb-4">
-                   <span>Question 1/5</span>
-                   <span className="text-yellow-400 font-bold">Score: 0</span>
                 </div>
-                <h3 className="text-lg font-medium mb-6 relative z-10">ดาวเคราะห์ดวงใดที่มีวงแหวนที่สวยงามและชัดเจนที่สุด?</h3>
+            );
+        };
+
+        // --- View Components ---
+
+        const HomeView = ({ setView, toggleCamera, useCamera }) => (
+            <div className="flex flex-col h-full bg-slate-900 p-6 pt-20 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-900/50 to-transparent pointer-events-none" />
                 
-                <div className="space-y-3 relative z-10">
-                  <button className="w-full text-left p-4 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-500 hover:bg-cyan-900/20 transition flex items-center justify-between group">
-                     <span>A. ดาวพฤหัส (Jupiter)</span>
-                     <div className="w-4 h-4 rounded-full border border-slate-500 group-hover:border-cyan-400"></div>
-                  </button>
-                  <button className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-cyan-900/40 to-slate-900 border border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.2)] transition flex items-center justify-between">
-                     <span>B. ดาวเสาร์ (Saturn)</span>
-                     <div className="w-4 h-4 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></div>
-                  </button>
-                  <button className="w-full text-left p-4 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-500 hover:bg-cyan-900/20 transition flex items-center justify-between group">
-                     <span>C. ดาวอังคาร (Mars)</span>
-                     <div className="w-4 h-4 rounded-full border border-slate-500 group-hover:border-cyan-400"></div>
-                  </button>
-                  <button className="w-full text-left p-4 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-500 hover:bg-cyan-900/20 transition flex items-center justify-between group">
-                     <span>D. โลก (Earth)</span>
-                     <div className="w-4 h-4 rounded-full border border-slate-500 group-hover:border-cyan-400"></div>
-                  </button>
-                </div>
-              </div>
-
-              <button onClick={() => setCurrentView('home')} className="mt-auto w-full bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition">
-                ส่งคำตอบ
-              </button>
-            </div>
-          );
-
-          return (
-            <div className="w-full max-w-md h-[850px] bg-black rounded-[40px] border-8 border-gray-800 shadow-2xl overflow-hidden relative">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-xl z-50"></div>
-
-              <div className="h-[92%] overflow-hidden">
-                {currentView === 'home' && <HomeView />}
-                {currentView === 'ar' && <ARModeView />}
-                {currentView === 'quiz' && <QuizView />}
-                {currentView === 'lesson' && <LessonView />}
-              </div>
-
-              <div className="absolute bottom-0 w-full h-[8%] bg-slate-900 border-t border-slate-800 flex justify-around items-center z-40">
-                <button 
-                  onClick={() => setCurrentView('home')} 
-                  className={`flex flex-col items-center gap-1 ${currentView === 'home' || currentView === 'lesson' ? 'text-cyan-400' : 'text-slate-500'}`}
-                >
-                  <Icons.BookOpen size={20} />
-                  <span className="text-[10px]">Learn</span>
-                </button>
-                
-                <div className="relative -top-5">
-                  <button 
-                    onClick={() => setCurrentView('ar')}
-                    className="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] border-4 border-slate-900 transform hover:scale-105 transition"
-                  >
-                    <Icons.Camera size={28} />
-                  </button>
+                <div className="relative z-10 mb-8 text-center">
+                    <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-2xl shadow-yellow-500/30 transform hover:scale-105 transition-transform duration-300">
+                        <Icons.BookOpen size={48} className="text-white drop-shadow-md" />
+                    </div>
+                    <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">AR Training</h1>
+                    <p className="text-gray-400 text-sm font-light">หลักสูตรติดตั้งโซลาร์เซลล์</p>
+                    <div className="inline-block px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full mt-3">
+                        <p className="text-yellow-500 text-xs font-semibold">สนพ.ลพบุรี</p>
+                    </div>
                 </div>
 
-                <button 
-                  onClick={() => setCurrentView('quiz')}
-                  className={`flex flex-col items-center gap-1 ${currentView === 'quiz' ? 'text-cyan-400' : 'text-slate-500'}`}
-                >
-                  <Icons.Crosshair size={20} />
-                  <span className="text-[10px]">Mission</span>
-                </button>
-              </div>
+                <div className="relative z-10 space-y-4 flex-1">
+                    <MenuCard 
+                        title="ใบงานที่ 1: ทดสอบแผง" 
+                        desc="วัดค่า Voc และ Isc (Model LR5-72HGD)"
+                        icon={<Icons.Activity className="text-orange-400" />}
+                        color="orange"
+                        onClick={() => setView('job-sheet-1')}
+                    />
+                    <MenuCard 
+                        title="ใบงานที่ 4: ประกอบตู้ Protection" 
+                        desc="เรียนรู้อุปกรณ์ Fuse, Surge, RCBO"
+                        icon={<Icons.ShieldAlert className="text-blue-400" />}
+                        color="blue"
+                        onClick={() => setView('job-sheet-4')}
+                    />
+                    <MenuCard 
+                        title="ใบงานที่ 6: เข้าสาย On-grid" 
+                        desc="จำลองการเดินสาย Inverter เข้าระบบ"
+                        icon={<Icons.Zap className="text-green-400" />}
+                        color="green"
+                        onClick={() => setView('job-sheet-6')}
+                    />
+                </div>
+
+                <div className="relative z-10 mt-6 pt-6 border-t border-gray-800">
+                    <div className="flex justify-between items-center text-gray-500 text-xs">
+                        <button 
+                            onClick={() => toggleCamera(!useCamera)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+                        >
+                            {useCamera ? <Icons.Video size={14} className="text-green-500"/> : <Icons.VideoOff size={14} className="text-red-500"/>}
+                            <span>{useCamera ? 'Camera: ON' : 'Camera: Simulation'}</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <Icons.Settings size={14} />
+                            <span>v2.0 Doc-Aligned</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-          );
+        );
+
+        // --- ใบงานที่ 1: Test Solar Cell ---
+        const JobSheet1View = ({ onBack, showNotification, useCamera }) => {
+            const [mode, setMode] = useState('Voc'); // Voc or Isc
+            const [value, setValue] = useState(0);
+
+            // Tech Specs from PDF Page 5: LONGi LR5-72HGD-585M
+            // Voc = 51.52 V
+            // Isc = 14.30 A
+            
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    const baseVal = mode === 'Voc' ? 51.52 : 14.30;
+                    // Add slight fluctuation to simulate real measurement
+                    const noise = (Math.random() * 0.2) - 0.1; 
+                    setValue(baseVal + noise);
+                }, 500);
+                return () => clearInterval(interval);
+            }, [mode]);
+
+            return (
+                <AROverlay title="ใบงานที่ 1: ทดสอบค่าไฟฟ้า" onBack={onBack} useCamera={useCamera}>
+                    <div className="relative w-full h-full flex flex-col items-center justify-center">
+                        {/* Virtual Multimeter Interface */}
+                        <div className="absolute top-20 bg-black/80 p-4 rounded-xl border-2 border-yellow-500 shadow-2xl w-64 text-center">
+                            <div className="text-gray-400 text-xs mb-1 font-mono">DIGITAL MULTIMETER</div>
+                            <div className="bg-[#9ea792] font-mono text-3xl text-black py-2 px-4 rounded mb-4 shadow-inner">
+                                {value.toFixed(2)} <span className="text-sm">{mode === 'Voc' ? 'V' : 'A'}</span>
+                            </div>
+                            
+                            <div className="flex gap-2 justify-center">
+                                <button 
+                                    onClick={() => { setMode('Voc'); showNotification("วัดแรงดันไฟฟ้าเปิดวงจร (Voc)"); }}
+                                    className={`px-4 py-2 rounded font-bold text-sm ${mode === 'Voc' ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-white'}`}
+                                >
+                                    Voc
+                                </button>
+                                <button 
+                                    onClick={() => { setMode('Isc'); showNotification("วัดกระแสไฟฟ้าลัดวงจร (Isc)"); }}
+                                    className={`px-4 py-2 rounded font-bold text-sm ${mode === 'Isc' ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-white'}`}
+                                >
+                                    Isc
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* AR Probe Guides */}
+                        <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute top-1/2 left-1/4 w-32 h-1 bg-red-500 transform rotate-45 shadow-lg"></div>
+                            <div className="absolute top-1/2 left-1/4 -mt-2 -ml-2 bg-red-600 w-4 h-4 rounded-full"></div>
+                            <div className="absolute top-1/2 left-1/4 mt-4 ml-4 bg-black/50 text-white text-xs px-2 rounded">ขั้วบวก (+)</div>
+
+                            <div className="absolute top-1/2 right-1/4 w-32 h-1 bg-black transform -rotate-45 shadow-lg"></div>
+                            <div className="absolute top-1/2 right-1/4 -mt-2 -mr-2 bg-gray-800 w-4 h-4 rounded-full"></div>
+                            <div className="absolute top-1/2 right-1/4 mt-4 mr-4 bg-black/50 text-white text-xs px-2 rounded">ขั้วลบ (-)</div>
+                        </div>
+
+                        <div className="absolute bottom-10 bg-white/10 backdrop-blur-md p-4 rounded-lg max-w-xs text-sm text-center">
+                            <p className="font-bold text-yellow-400 mb-1">สเปกแผง (Datasheet)</p>
+                            <p>Model: LR5-72HGD-585M</p>
+                            <p>STC: 1000W/m², 25°C</p>
+                        </div>
+                    </div>
+                </AROverlay>
+            );
+        };
+
+        // --- ใบงานที่ 4: Protection Cabinet ---
+        const JobSheet4View = ({ onBack, showNotification, useCamera }) => {
+            const [selectedPart, setSelectedPart] = useState(null);
+
+            // Components from PDF Page 15-16
+            const parts = [
+                { id: 1, name: 'DC Fuse', code: 'WSPV-30', spec: '1000V DC 30A', x: '20%', y: '40%', type: 'dc' },
+                { id: 2, name: 'DC Surge', code: 'XLSPD-PV', spec: '1200V DC 20-40kA', x: '40%', y: '40%', type: 'dc' },
+                { id: 3, name: 'AC Breaker', code: 'RCBO/MCB', spec: '230V AC C20', x: '65%', y: '40%', type: 'ac' },
+                { id: 4, name: 'AC Surge', code: 'XLSPD-40', spec: '385V AC 20-40kA', x: '85%', y: '40%', type: 'ac' },
+            ];
+
+            return (
+                <AROverlay title="ใบงานที่ 4: ตู้ Protection" onBack={onBack} useCamera={useCamera}>
+                    <div className="relative w-full h-full">
+                        {/* Virtual Cabinet Box */}
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-64 border-4 border-gray-400 bg-gray-800/80 rounded-lg backdrop-blur-sm shadow-2xl">
+                            <div className="absolute top-0 left-0 w-full bg-gray-700 h-8 flex items-center px-4 text-xs font-bold text-gray-300">
+                                COMBINER BOX (IP65)
+                            </div>
+                            
+                            {/* Rail */}
+                            <div className="absolute top-1/2 left-4 right-4 h-4 bg-gray-400 rounded transform -translate-y-1/2"></div>
+
+                            {/* Components */}
+                            {parts.map(part => (
+                                <button
+                                    key={part.id}
+                                    style={{ left: part.x, top: '50%' }}
+                                    className={`absolute w-12 h-20 -ml-6 -mt-10 border rounded shadow-md transform transition-transform hover:scale-110 active:scale-95 flex flex-col items-center justify-center gap-1 ${
+                                        part.type === 'dc' ? 'bg-red-900/80 border-red-500' : 'bg-blue-900/80 border-blue-500'
+                                    }`}
+                                    onClick={() => setSelectedPart(part)}
+                                >
+                                    <div className="text-[8px] font-bold text-white/80">{part.name}</div>
+                                    <div className={`w-2 h-2 rounded-full ${part.type === 'dc' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Connection Lines Hint */}
+                        <div className="absolute top-[65%] left-1/2 transform -translate-x-1/2 text-xs text-gray-400 animate-pulse">
+                            แตะที่อุปกรณ์เพื่อดูรายละเอียด
+                        </div>
+
+                        {selectedPart && (
+                            <div className="absolute top-24 left-4 right-4 bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-2xl animate-fade-in-down z-50 text-white">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="font-bold text-lg text-yellow-400">{selectedPart.name}</h3>
+                                    <button onClick={() => setSelectedPart(null)} className="p-1 hover:bg-white/10 rounded-full"><Icons.X size={18}/></button>
+                                </div>
+                                <div className="space-y-1 text-sm">
+                                    <p><span className="text-gray-400">Model:</span> {selectedPart.code}</p>
+                                    <p><span className="text-gray-400">Spec:</span> {selectedPart.spec}</p>
+                                    <p className="text-xs text-gray-300 mt-2">
+                                        {selectedPart.type === 'dc' ? 'ติดตั้งฝั่งรับไฟจากแผง Solar (IEC 60269-6)' : 'ติดตั้งฝั่งจ่ายไฟเข้า Grid (IEC 61643-11)'}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </AROverlay>
+            );
+        };
+
+        // --- ใบงานที่ 6: Wiring System ---
+        const JobSheet6View = ({ onBack, showNotification, useCamera }) => {
+            const [step, setStep] = useState(0);
+
+            // Wiring Steps based on PDF Page 54-56
+            const steps = [
+                { id: 0, text: "แตะเพื่อเริ่มเดินสาย", highlight: [] },
+                { id: 1, text: "1. เดินสาย DC (4 sq.mm) จากแผงเข้าตู้ Protection", highlight: ['panel', 'box'] },
+                { id: 2, text: "2. เชื่อมต่อ DC จากตู้เข้า Inverter", highlight: ['box', 'inv'] },
+                { id: 3, text: "3. เดินสาย AC (3x2.5 sq.mm) จาก Inverter กลับมาที่ตู้", highlight: ['inv', 'box'] },
+                { id: 4, text: "4. เดินสาย AC ออกจากตู้ไปยัง Grid (PEA)", highlight: ['box', 'grid'] },
+                { id: 5, text: "ระบบสมบูรณ์ พร้อมขนานไฟ", highlight: ['all'] }
+            ];
+
+            const nextStep = () => {
+                if (step < 5) setStep(step + 1);
+                else {
+                    setStep(0);
+                    showNotification("รีเซ็ตการจำลอง");
+                }
+            };
+
+            return (
+                <AROverlay title="ใบงานที่ 6: เข้าสาย On-grid" onBack={onBack} useCamera={useCamera}>
+                    <div className="relative w-full h-full flex items-center justify-center" onClick={nextStep}>
+                        
+                        {/* Diagram Container */}
+                        <div className="relative w-full h-full max-w-sm mx-auto mt-20 p-4">
+                            
+                            {/* Devices */}
+                            <div className="absolute top-10 left-10 w-20 h-24 bg-blue-900 border-2 border-blue-400 rounded flex items-center justify-center text-xs font-bold shadow-lg z-10">
+                                PV Panel
+                            </div>
+                            
+                            <div className="absolute top-40 left-1/2 transform -translate-x-1/2 w-32 h-24 bg-gray-800 border-2 border-gray-500 rounded flex items-center justify-center text-xs font-bold shadow-lg z-10">
+                                Protection Box
+                            </div>
+
+                            <div className="absolute top-10 right-10 w-20 h-24 bg-yellow-600 border-2 border-yellow-400 rounded flex items-center justify-center text-xs font-bold shadow-lg z-10">
+                                Inverter
+                            </div>
+
+                            <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 w-24 h-16 bg-purple-900 border-2 border-purple-400 rounded-full flex items-center justify-center text-xs font-bold shadow-lg z-10">
+                                Grid (PEA)
+                            </div>
+
+                            {/* Wiring SVG Overlay */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                                {/* Step 1: Panel -> Box */}
+                                {step >= 1 && (
+                                    <path d="M 70 80 L 70 140 L 140 160" fill="none" stroke="#ef4444" strokeWidth="3" strokeDasharray="5" className="animate-flow" />
+                                )}
+                                {/* Step 2: Box -> Inv */}
+                                {step >= 2 && (
+                                    <path d="M 210 160 L 280 140 L 280 80" fill="none" stroke="#ef4444" strokeWidth="3" strokeDasharray="5" className="animate-flow" />
+                                )}
+                                {/* Step 3: Inv -> Box (AC) */}
+                                {step >= 3 && (
+                                    <path d="M 260 80 L 260 130 L 200 150" fill="none" stroke="#22c55e" strokeWidth="3" strokeDasharray="5" className="animate-flow" />
+                                )}
+                                {/* Step 4: Box -> Grid */}
+                                {step >= 4 && (
+                                    <path d="M 180 200 L 180 250" fill="none" stroke="#22c55e" strokeWidth="3" strokeDasharray="5" className="animate-flow" />
+                                )}
+                            </svg>
+
+                        </div>
+
+                        {/* Instruction HUD */}
+                        <div className="absolute bottom-12 left-4 right-4 bg-black/70 backdrop-blur-md border border-gray-600 p-4 rounded-xl">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-yellow-400 font-bold text-sm">ขั้นตอนที่ {step}/5</span>
+                                <span className="text-gray-400 text-xs">แตะหน้าจอเพื่อไปต่อ</span>
+                            </div>
+                            <p className="text-sm">{steps[step].text}</p>
+                            {/* Progress Bar */}
+                            <div className="w-full bg-gray-700 h-1 mt-3 rounded-full overflow-hidden">
+                                <div className="bg-green-500 h-full transition-all duration-300" style={{ width: `${(step/5)*100}%` }}></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </AROverlay>
+            );
+        };
+
+        // --- Core Shared Components ---
+
+        const AROverlay = ({ title, onBack, useCamera, children }) => {
+            const { videoRef, error, isLoading } = useCameraStream(useCamera);
+
+            return (
+                <div className="relative w-full h-full bg-gray-900 overflow-hidden">
+                    {useCamera ? (
+                        <div className="absolute inset-0 bg-black">
+                            {isLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-900">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-500"></div>
+                                </div>
+                            )}
+                            <video 
+                                ref={videoRef}
+                                autoPlay 
+                                playsInline 
+                                muted 
+                                className="w-full h-full object-cover opacity-90"
+                            />
+                            {error && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 z-20 p-6 text-center">
+                                    <Icons.VideoOff size={48} className="text-red-500 mb-4" />
+                                    <p className="text-white mb-2">{error}</p>
+                                    <p className="text-gray-400 text-sm">ระบบจะเปลี่ยนไปใช้โหมดจำลองอัตโนมัติ</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                           <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '40px 40px'}}></div>
+                           <p className="text-gray-600 font-mono text-sm">[ Simulation Mode Active ]</p>
+                        </div>
+                    )}
+
+                    <div className="absolute inset-0 z-30">
+                        {children}
+                    </div>
+
+                    <div className="absolute top-0 w-full pt-12 pb-4 px-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center gap-4 z-40 pointer-events-none">
+                        <button 
+                            onClick={onBack}
+                            className="pointer-events-auto p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all text-white"
+                        >
+                            <Icons.X size={20} />
+                        </button>
+                        <div className="flex-1">
+                            <h2 className="text-lg font-bold text-white tracking-wide shadow-black drop-shadow-md">{title}</h2>
+                        </div>
+                        {useCamera && !error && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/80 backdrop-blur-md border border-red-400/30">
+                                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                <span className="text-[10px] font-bold text-white tracking-wider">LIVE</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="absolute top-1/2 left-1/2 w-6 h-6 border border-white/40 rounded-full transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30 flex items-center justify-center mix-blend-difference">
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MenuCard = ({ title, desc, icon, color, onClick }) => {
+            const bgColors = {
+                orange: 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/20',
+                blue: 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20',
+                green: 'bg-green-500/10 border-green-500/30 hover:bg-green-500/20',
+            };
+
+            return (
+                <button 
+                    onClick={onClick}
+                    className={`w-full p-4 rounded-2xl border backdrop-blur-sm flex items-center gap-4 transition-all active:scale-95 text-left group ${bgColors[color] || 'bg-gray-800'}`}
+                >
+                    <div className={`p-3 rounded-xl bg-gray-900 group-hover:scale-110 transition-transform duration-300 border border-gray-700 shadow-inner`}>
+                        {icon}
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-white text-base mb-0.5">{title}</h3>
+                        <p className="text-xs text-gray-400 font-light leading-relaxed">{desc}</p>
+                    </div>
+                </button>
+            );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<AstroVerseApp />);
+        root.render(<App />);
     </script>
 </body>
 </html>
